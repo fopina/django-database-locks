@@ -15,6 +15,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.6, 3.7, 3.8]
+        database: [mysql, postgresql]
 
     services:
       mysql:
@@ -25,37 +26,7 @@ jobs:
         - 8877:3306
         # needed because the container does not provide a healthcheck
         options: --health-cmd "mysqladmin ping" --health-interval 10s --health-timeout 5s --health-retries=5
-
-    steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install tox
-      run: |
-        pip install tox
-    - name: Toxit
-      run: |
-        tox -e py-mysql -v
-    
-    - name: coverage xml
-      run: |
-        .tox/py-mysql/bin/coverage xml
-      if: ${{ matrix.python-version == 3.7 }}
-
-    - uses: codecov/codecov-action@v1
-      with:
-        fail_ci_if_error: true
-      if: ${{ matrix.python-version == 3.7 }}
-
-  test_pg:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.6, 3.7, 3.8]
-
-    services:
+        if: ${{ matrix.database == "mysql" }}
       postgres:
         image: postgres:10
         env:
@@ -66,6 +37,7 @@ jobs:
         - 8878:5432
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        if: ${{ matrix.database == "postgresql" }}
 
     steps:
     - uses: actions/checkout@v2
@@ -78,4 +50,14 @@ jobs:
         pip install tox
     - name: Toxit
       run: |
-        tox -e py-postgresql -v
+        tox -e py-${{ matrix.database }} -v
+    
+    - name: coverage xml
+      run: |
+        .tox/py-mysql/bin/coverage xml
+      if: ${{ matrix.python-version == 3.7 and matrix.database == "mysql" }}
+
+    - uses: codecov/codecov-action@v1
+      with:
+        fail_ci_if_error: true
+      if: ${{ matrix.python-version == 3.7 and matrix.database == "mysql" }}
