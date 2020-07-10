@@ -1,6 +1,6 @@
-====================
+=====================
 django-database-locks
-====================
+=====================
 
 .. image:: https://github.com/fopina/django-database-locks/workflows/tests/badge.svg
     :target: https://github.com/fopina/django-database-locks/actions?query=workflow%3Atests
@@ -14,11 +14,11 @@ django-database-locks
     :target: https://pypi.org/project/django-database-locks/
     :alt: Current version on PyPi
 
-.. image:: https://img.shields.io/pypi/djversions/django-database-locks
-    :alt: PyPI - Django Version
-
 .. image:: https://img.shields.io/pypi/pyversions/django-database-locks
     :alt: PyPI - Python Version
+
+.. image:: https://img.shields.io/pypi/djversions/django-database-locks
+    :alt: PyPI - Django Version
 
 Distributed locks for Django using DB (MySQL/Postgres)
 
