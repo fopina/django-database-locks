@@ -31,7 +31,7 @@ test: startmysql
 		tests/manage.py test $${TEST_ARGS:-tests}
 
 testpg: startpg
-	DJANGO_SETTINGS_MODULE=settings_pg \
+	DJANGO_SETTINGS_MODULE=settings_postgresql \
 		tests/manage.py test $${TEST_ARGS:-tests}
 
 testcover: export DJANGO_SETTINGS_MODULE=settings_mysql
