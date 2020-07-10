@@ -38,7 +38,12 @@ jobs:
     - name: Toxit
       run: |
         tox -e py-mysql -v
-        ls -la
+        coverage xml
+    
+    - name: coverage xml
+      run: |
+        coverage xml
+      if: ${{ matrix.python-version == 3.7 }}
 
     - uses: codecov/codecov-action@v1
       with:
