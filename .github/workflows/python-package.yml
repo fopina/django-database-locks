@@ -38,6 +38,7 @@ jobs:
     - name: Toxit
       run: |
         tox -e py-mysql -v
+        ls -la
 
     - uses: codecov/codecov-action@v1
       with:
