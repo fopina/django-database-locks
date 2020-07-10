@@ -26,7 +26,6 @@ jobs:
         - 8877:3306
         # needed because the container does not provide a healthcheck
         options: --health-cmd "mysqladmin ping" --health-interval 10s --health-timeout 5s --health-retries=5
-        if: ${{ matrix.database == "mysql" }}
       postgres:
         image: postgres:10
         env:
@@ -37,7 +36,6 @@ jobs:
         - 8878:5432
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-        if: ${{ matrix.database == "postgresql" }}
 
     steps:
     - uses: actions/checkout@v2
