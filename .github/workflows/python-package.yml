@@ -76,16 +76,9 @@ jobs:
     - name: Toxit
       run: |
         tox -e py-postgresql -v
-    
-    - name: Coveralls Parallel
-      uses: coverallsapp/github-action@master
-      with:
-        github-token: ${{ secrets.github_token }}
-        flag-name: run-${{ matrix.test_number }}
-        parallel: true
 
   coverage:
-    needs: test_mysql,test_pg
+    needs: test_mysql
     runs-on: ubuntu-latest
     steps:
     - name: Coveralls Finished
