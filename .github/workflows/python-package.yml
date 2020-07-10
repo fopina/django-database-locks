@@ -53,9 +53,9 @@ jobs:
     - name: coverage xml
       run: |
         .tox/py-mysql/bin/coverage xml
-      if: ${{ matrix.python-version == 3.7 }} and ${{ matrix.database == mysql }}
+      if: ${{ matrix.python-version == 3.7 && matrix.database == 'mysql' }}
 
     - uses: codecov/codecov-action@v1
       with:
         fail_ci_if_error: true
-      if: ${{ matrix.python-version == 3.7 }} and ${{ matrix.database == mysql }}
+      if: ${{ matrix.python-version == 3.7 && matrix.database == 'mysql' }}
