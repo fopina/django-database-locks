@@ -96,5 +96,5 @@ Both `lock` and `locked` have the same optional args:
 
 There are also the following options you can specify in the project `settings.py`
 
-* `DATABASE_LOCKS_STATUS_FILE`: file that will be updated with the lock status (default `None`). Useful when you have multiple shared-lock processes, to quickly inspect which one has the lock.
-* `DATABASE_LOCKS_ENABLED`: set to `False` to globally disable locks (default `True`)
+- *DATABASE_LOCKS_STATUS_FILE*: file that will be updated with the lock status (default `None`). Useful when you have multiple shared-lock processes, to quickly inspect which one has the lock.
+- *DATABASE_LOCKS_ENABLED*: set to `False` to globally disable locks (default `True`)
