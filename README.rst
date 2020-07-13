@@ -85,6 +85,7 @@ Docs
 Both `lock` and `locked` have the same optional args:
 
 .. code-block:: python
+
     :param lock_name: unique name in DB for this function
     :param timeout: numbers of seconds to wait to acquire lock
     :param lock_ttl: expiration timer of the lock, in seconds (set to None to infinite)
