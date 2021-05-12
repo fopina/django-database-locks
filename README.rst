@@ -99,3 +99,5 @@ There are also the following options you can specify in the project `settings.py
 
 - *DATABASE_LOCKS_STATUS_FILE*: file that will be updated with the lock status (default `None`). Useful when you have multiple shared-lock processes, to quickly inspect which one has the lock.
 - *DATABASE_LOCKS_ENABLED*: set to `False` to globally disable locks (default `True`)
+- *DATABASE_LOCKS_DEFAULT_TTL*: global lock TTL value (default `10`) which is ignored when `lock_ttl` is specified
+- *DATABASE_LOCKS_DEFAULT_TTL_RENEW*: number of seconds to renew lock before TTL expires (default `2`)

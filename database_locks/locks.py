@@ -261,4 +261,3 @@ def _status_file(message):
         logger.exception(
             'failed to update lock status file %s', settings.DATABASE_LOCKS_STATUS_FILE
         )
-
