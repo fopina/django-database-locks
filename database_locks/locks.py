@@ -16,17 +16,19 @@ from django.core.management.base import BaseCommand
 
 
 logger = logging.getLogger(__name__)
+NOTSET = object()
 
 
 @contextmanager
 def lock(
     lock_name,
     timeout=0,
-    lock_ttl=10,
+    lock_ttl=NOTSET,
     locked_by=None,
     auto_renew=True,
     retry=0.5,
     lost_lock_cb=None,
+    lock_ttl_renew=NOTSET,
 ):
     """
     :param lock_name: unique name in DB for this function
@@ -37,6 +39,7 @@ def lock(
                        auto_renew thread will raise KeyboardInterrupt on the main thread in case re-acquiring fails
     :param retry: retry every `retry` seconds acquiring until successful. set to None or 0 to disable.
     :param lost_lock_cb: callback function when lock is lost (when re-acquiring). defaults to raising LockException
+    :param lock_ttl_renew: number of seconds to renew before lock_ttl expires
     :return:
     """
     # TODO migrate to contextlib.ContextDecorator once only py3 is used
@@ -56,6 +59,11 @@ def lock(
         )
         yield
         return
+
+    if lock_ttl is NOTSET:
+        lock_ttl = settings.DATABASE_LOCKS_DEFAULT_TTL
+    if lock_ttl_renew is NOTSET:
+        lock_ttl_renew = settings.DATABASE_LOCKS_DEFAULT_TTL_RENEW
 
     logger.info('acquiring lock %s' % lock_name)
     lock = DBLock(lock_name, locked_by=locked_by)
@@ -77,7 +85,7 @@ def lock(
 
     renew_thread = None
     if auto_renew:
-        renew_thread = RenewThread(lock, lock_ttl)
+        renew_thread = RenewThread(lock, lock_ttl, lock_ttl_renew)
         renew_thread.start()
 
     _status_file('2')
@@ -204,15 +212,13 @@ class DBLock:
 
 
 class RenewThread(threading.Thread):
-    EARLY_TICK = 1
-
-    def __init__(self, lock_obj, ttl):
+    def __init__(self, lock_obj, ttl, early_tick):
         super(RenewThread, self).__init__()
 
         self.__lock = lock_obj
         self.__ttl = ttl
-        # renew 1 second before TTL
-        self.__wait = max(ttl - self.EARLY_TICK, 1)
+        # renew EARLY_TICK seconds before TTL
+        self.__wait = max(ttl - early_tick, 1)
 
         self.__stopped = threading.Event()
         self.daemon = True
@@ -261,4 +267,3 @@ def _status_file(message):
         logger.exception(
             'failed to update lock status file %s', settings.DATABASE_LOCKS_STATUS_FILE
         )
-

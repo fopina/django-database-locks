@@ -194,12 +194,12 @@ class TestRenewThread(TestCase):
         ml = lock_mock.return_value
         with mock.patch('database_locks.locks.RenewThread') as rt_mock:
             with database_locks.lock('testing'):
-                rt_mock.assert_called_once_with(ml, 10)
+                rt_mock.assert_called_once_with(ml, 10, 2)
                 rt_mock.return_value.start.assert_called_once_with()
         ml.release.assert_called_with()
 
         # same __init__ call as asserted before
-        rt = database_locks.locks.RenewThread(ml, 10)
+        rt = database_locks.locks.RenewThread(ml, 10, 2)
         self.assertFalse(rt._RenewThread__stopped.is_set())
         self.assertTrue(rt.stop())
         self.assertTrue(rt._RenewThread__stopped.is_set())
@@ -208,12 +208,34 @@ class TestRenewThread(TestCase):
         rt.run()
         ml.acquire.assert_called_once_with(lock_ttl=10)
 
+    @override_settings(
+        DATABASE_LOCKS_DEFAULT_TTL=20, DATABASE_LOCKS_DEFAULT_TTL_RENEW=5
+    )
+    @mock.patch('database_locks.locks.DBLock')
+    def test_renew_thread_change_defaults(self, lock_mock):
+        ml = lock_mock.return_value
+        with mock.patch('database_locks.locks.RenewThread') as rt_mock:
+            with database_locks.lock('testing'):
+                rt_mock.assert_called_once_with(ml, 20, 5)
+                rt_mock.return_value.start.assert_called_once_with()
+        ml.release.assert_called_with()
+
+        # same __init__ call as asserted before
+        rt = database_locks.locks.RenewThread(ml, 20, 5)
+        self.assertFalse(rt._RenewThread__stopped.is_set())
+        self.assertTrue(rt.stop())
+        self.assertTrue(rt._RenewThread__stopped.is_set())
+
+        ml.reset_mock()
+        rt.run()
+        ml.acquire.assert_called_once_with(lock_ttl=20)
+
     def test_renew_thread_fail(self):
         ml = mock.MagicMock()
         # "name" property is a MagicMock constructor, so it has to go like this...
         type(ml).name = 'test_lock'
         ml.acquire.return_value = False
-        rt = database_locks.locks.RenewThread(ml, 10)
+        rt = database_locks.locks.RenewThread(ml, 10, 2)
 
         # in case test fails, no need for infinite loop
         self.assertFalse(rt._RenewThread__stopped.is_set())
@@ -234,7 +256,7 @@ class TestRenewThread(TestCase):
         # "name" property is a MagicMock constructor, so it has to go like this...
         type(ml).name = 'test_lock'
         ml.acquire.side_effect = Exception('wtv happens happens')
-        rt = database_locks.locks.RenewThread(ml, 10)
+        rt = database_locks.locks.RenewThread(ml, 10, 1)
 
         # in case test fails, no need for infinite loop
         self.assertFalse(rt._RenewThread__stopped.is_set())
@@ -357,4 +379,3 @@ class TestLock(TestCase):
         self.assertEqual(
             logs.output, ['DEBUG:database_locks.locks:lock x1 acquired/renewed']
         )
-

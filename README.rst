@@ -99,3 +99,35 @@ There are also the following options you can specify in the project `settings.py
 
 - *DATABASE_LOCKS_STATUS_FILE*: file that will be updated with the lock status (default `None`). Useful when you have multiple shared-lock processes, to quickly inspect which one has the lock.
 - *DATABASE_LOCKS_ENABLED*: set to `False` to globally disable locks (default `True`)
+- *DATABASE_LOCKS_DEFAULT_TTL*: global lock TTL value (default `10`) which is ignored when `lock_ttl` is specified
+- *DATABASE_LOCKS_DEFAULT_TTL_RENEW*: number of seconds to renew lock before TTL expires (default `2`)
+
+
+Testing
+-------
+
+Tox is used by the Github Action to test several python and django versions, with both MySQL and Postgres.
+
+To quickly test locally, kick off a MySQL and/or Postgres docker container:
+
+```
+docker run -d --name locks-test \
+           -p 8877:3306 \
+           -e MYSQL_ROOT_PASSWORD=root \
+           mysql:5.7
+```
+
+```
+docker run -d --name locks-test-psql \
+           -p 8878:5432 \
+           -e POSTGRES_PASSWORD=postgres \
+           postgres:10
+```
+
+List available environments with `tox -l` and then run the one you want/have:
+
+```
+tox -e py39-dj32-mysql
+# or
+tox -e py39-dj32-postgresql -e py39-dj32-mysql
+```

@@ -1,7 +1,7 @@
 from django.apps import AppConfig
 from django.conf import settings
 
-APP_SETTINGS = dict(STATUS_FILE=None, ENABLED=True)
+APP_SETTINGS = dict(STATUS_FILE=None, ENABLED=True, DEFAULT_TTL=10, DEFAULT_TTL_RENEW=2)
 
 
 class DBLocksConfig(AppConfig):
