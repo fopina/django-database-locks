@@ -110,24 +110,20 @@ Tox is used by the Github Action to test several python and django versions, wit
 
 To quickly test locally, kick off a MySQL and/or Postgres docker container:
 
-```
-docker run -d --name locks-test \
-           -p 8877:3306 \
-           -e MYSQL_ROOT_PASSWORD=root \
-           mysql:5.7
-```
 
-```
-docker run -d --name locks-test-psql \
-           -p 8878:5432 \
-           -e POSTGRES_PASSWORD=postgres \
-           postgres:10
-```
+    docker run -d --name locks-test \
+               -p 8877:3306 \
+               -e MYSQL_ROOT_PASSWORD=root \
+               mysql:5.7
+
+    docker run -d --name locks-test-psql \
+               -p 8878:5432 \
+               -e POSTGRES_PASSWORD=postgres \
+               postgres:10
+
 
 List available environments with `tox -l` and then run the one you want/have:
 
-```
-tox -e py39-dj32-mysql
-# or
-tox -e py39-dj32-postgresql -e py39-dj32-mysql
-```
+    tox -e py39-dj32-mysql
+    # or
+    tox -e py39-dj32-postgresql -e py39-dj32-mysql

@@ -10,6 +10,18 @@ on:
     branches: [ master ]
 
 jobs:
+  readme:
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Install renderer
+      run: pip install readme_renderer
+    - name: Test readme (before pypi errors)
+      run: python -m readme_renderer README.rst
+
   test:
     runs-on: ubuntu-latest
     strategy:
