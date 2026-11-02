@@ -9,4 +9,7 @@ class Lock(models.Model):
 
     @property
     def active(self):
+        """Convenience for admin/debug only - compares against *this process's* clock, so it must
+        not be used to decide lock acquisition (see DBLock.acquire, which evaluates expiry in SQL
+        against the DB clock instead)."""
         return self.expires_at is not None and timezone.now() <= self.expires_at

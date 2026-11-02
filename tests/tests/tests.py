@@ -75,6 +75,26 @@ class Test(TestCase):
         self._lock_mock.return_value.acquire.assert_called_once_with(lock_ttl=10)
         self._lock_mock.return_value.release.assert_not_called()
 
+    def test_lock_acquire_db_error_retried(self):
+        # a transient db.Error (e.g. Galera certification failure / deadlock 1213) must not crash
+        # the process, it should be treated like a failed acquire and retried
+        self._lock_mock.return_value.acquire.side_effect = [
+            database_locks.locks.db.Error('deadlock'),
+            True,
+        ]
+        with mock.patch('database_locks.locks.db.close_old_connections') as close_mock:
+            with database_locks.lock('testing'):
+                pass
+        close_mock.assert_called_once_with()
+        self._lock_mock.return_value.release.assert_called_once_with()
+
+    def test_lock_releases_on_exception(self):
+        # bug 3: an exception inside the `with lock(...)` body must still release the lock
+        with self.assertRaises(ValueError):
+            with database_locks.lock('testing'):
+                raise ValueError('boom')
+        self._lock_mock.return_value.release.assert_called_once_with()
+
     def test_lock_decorator(self):
         @database_locks.locked
         def locked_func():
@@ -194,7 +214,7 @@ class TestRenewThread(TestCase):
         ml = lock_mock.return_value
         with mock.patch('database_locks.locks.RenewThread') as rt_mock:
             with database_locks.lock('testing'):
-                rt_mock.assert_called_once_with(ml, 10, 2)
+                rt_mock.assert_called_once_with(ml, 10, 2, max_failures=1)
                 rt_mock.return_value.start.assert_called_once_with()
         ml.release.assert_called_with()
 
@@ -216,7 +236,7 @@ class TestRenewThread(TestCase):
         ml = lock_mock.return_value
         with mock.patch('database_locks.locks.RenewThread') as rt_mock:
             with database_locks.lock('testing'):
-                rt_mock.assert_called_once_with(ml, 20, 5)
+                rt_mock.assert_called_once_with(ml, 20, 5, max_failures=1)
                 rt_mock.return_value.start.assert_called_once_with()
         ml.release.assert_called_with()
 
@@ -248,7 +268,7 @@ class TestRenewThread(TestCase):
         kill_mock.assert_called_once()
         self.assertEqual(
             log.output,
-            ['ERROR:database_locks.locks:failed to re-acquire lock test_lock'],
+            ['ERROR:database_locks.locks:lock test_lock taken by someone else'],
         )
 
     def test_renew_thread_exception(self):
@@ -268,9 +288,54 @@ class TestRenewThread(TestCase):
                 rt.run()
         kill_mock.assert_called_once()
         self.assertIn(
-            'ERROR:database_locks.locks:some error re-acquiring lock test_lock',
+            'ERROR:database_locks.locks:error re-acquiring lock test_lock',
             log.output[0],
         )
+
+    def test_renew_thread_tolerates_failures_below_max(self):
+        # bug 1: an exception re-acquiring should be tolerated up to max_failures, not kill
+        # the process on the first failure
+        ml = mock.MagicMock()
+        type(ml).name = 'test_lock'
+        rt = database_locks.locks.RenewThread(ml, 10, 2, max_failures=2)
+
+        with mock.patch('os.kill') as kill_mock, mock.patch(
+            'database_locks.locks.db.close_old_connections'
+        ) as close_mock:
+            ml.acquire.side_effect = Exception('blip')
+            rt.renew()
+            kill_mock.assert_not_called()
+            close_mock.assert_called_once_with()
+            self.assertEqual(rt._RenewThread__failures, 1)
+
+            ml.acquire.side_effect = None
+            ml.acquire.return_value = True
+            rt.renew()
+            kill_mock.assert_not_called()
+            self.assertEqual(rt._RenewThread__failures, 0)
+
+    def test_renew_thread_gives_up_after_max_failures(self):
+        ml = mock.MagicMock()
+        type(ml).name = 'test_lock'
+        ml.acquire.side_effect = Exception('still down')
+        rt = database_locks.locks.RenewThread(ml, 10, 2, max_failures=2)
+
+        with mock.patch('os.kill') as kill_mock:
+            rt.renew()
+            kill_mock.assert_not_called()
+            rt.renew()
+            kill_mock.assert_called_once()
+
+    def test_renew_thread_lost_to_other_owner_gives_up_immediately(self):
+        # losing the lock to a genuine new owner must never be tolerated, regardless of max_failures
+        ml = mock.MagicMock()
+        type(ml).name = 'test_lock'
+        ml.acquire.return_value = False
+        rt = database_locks.locks.RenewThread(ml, 10, 2, max_failures=5)
+
+        with mock.patch('os.kill') as kill_mock:
+            rt.renew()
+            kill_mock.assert_called_once()
 
 
 @skipUnlessDBFeature('has_select_for_update')
@@ -378,4 +443,30 @@ class TestLock(TestCase):
             self.assertTrue(l2.acquire())
         self.assertEqual(
             logs.output, ['DEBUG:database_locks.locks:lock x1 acquired/renewed']
+        )
+
+    def test_fencing_stolen_lock_rejected(self):
+        # bug 5: a race between reading the row (past its expiry, so eligible to steal) and
+        # writing our own ownership, where another process wins that race in between - the
+        # fenced UPDATE (WHERE locked_by=<owner we read>) must reject our write instead of
+        # silently overwriting the new owner. Simulated here by racing the update itself, since
+        # select_for_update already prevents this within a single DB/single-writer setup.
+        l1 = database_locks.locks.DBLock('x1', locked_by='dibs')
+        self.assertTrue(l1.acquire(lock_ttl=-1))  # expire immediately, eligible to steal
+
+        Lock = database_locks.locks.apps.get_model('database_locks', 'Lock')
+        real_filter = Lock.objects.filter
+
+        def racing_filter(*args, **kwargs):
+            # right before our own fenced UPDATE runs, someone else grabs the row first
+            if kwargs.get('locked_by') == 'dibs':
+                Lock.objects.filter(name='x1').update(locked_by='thief')
+            return real_filter(*args, **kwargs)
+
+        with mock.patch.object(Lock.objects, 'filter', side_effect=racing_filter):
+            with self.assertLogs('database_locks', level='DEBUG') as logs:
+                self.assertFalse(l1.acquire())
+        self.assertIn(
+            'DEBUG:database_locks.locks:lock x1 stolen from under us, try next time',
+            logs.output,
         )

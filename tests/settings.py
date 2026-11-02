@@ -112,3 +112,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/2.2/howto/static-files/
 
 STATIC_URL = '/static/'
+
+# keep the pre-existing tight defaults for the test suite (production default was raised, see README)
+DATABASE_LOCKS_DEFAULT_TTL = 10
+DATABASE_LOCKS_DEFAULT_TTL_RENEW = 2
+

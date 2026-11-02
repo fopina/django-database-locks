@@ -12,6 +12,8 @@ from django.conf import settings
 from django import db
 from django.apps import apps
 from django.utils import timezone
+from django.db.models import BooleanField, Case, Value, When
+from django.db.models.functions import Now
 from django.core.management.base import BaseCommand
 
 
@@ -29,6 +31,7 @@ def lock(
     retry=0.5,
     lost_lock_cb=None,
     lock_ttl_renew=NOTSET,
+    max_failures=1,
 ):
     """
     :param lock_name: unique name in DB for this function
@@ -36,10 +39,16 @@ def lock(
     :param lock_ttl: expiration timer of the lock, in seconds (set to None to infinite)
     :param locked_by: owner id for the lock (if lock is active but owner is the same, returns acquired)
     :param auto_renew: if set to True will re-acquire lock (for `lock_ttl` seconds) before `lock_ttl` is over.
-                       auto_renew thread will raise KeyboardInterrupt on the main thread in case re-acquiring fails
+                       auto_renew thread will raise LockException (via SIGUSR1) on the main thread in case
+                       re-acquiring keeps failing (see `max_failures`)
     :param retry: retry every `retry` seconds acquiring until successful. set to None or 0 to disable.
     :param lost_lock_cb: callback function when lock is lost (when re-acquiring). defaults to raising LockException
     :param lock_ttl_renew: number of seconds to renew before lock_ttl expires
+    :param max_failures: number of consecutive renew failures (DB unreachable) tolerated before giving up the
+                          lock. A renewal that fails because someone else genuinely owns the lock always gives
+                          up immediately, regardless of this value. Keep
+                          ``max_failures * (lock_ttl - lock_ttl_renew) < lock_ttl`` (with margin) so the total
+                          tolerated outage still fits inside the lease.
     :return:
     """
     # TODO migrate to contextlib.ContextDecorator once only py3 is used
@@ -65,6 +74,15 @@ def lock(
     if lock_ttl_renew is NOTSET:
         lock_ttl_renew = settings.DATABASE_LOCKS_DEFAULT_TTL_RENEW
 
+    if lock_ttl is not None and max_failures * (lock_ttl - lock_ttl_renew) >= lock_ttl:
+        logger.warning(
+            'max_failures * (lock_ttl - lock_ttl_renew) should be < lock_ttl (with margin) so the '
+            'tolerated outage fits inside the lease - got max_failures=%s, lock_ttl=%s, lock_ttl_renew=%s',
+            max_failures,
+            lock_ttl,
+            lock_ttl_renew,
+        )
+
     logger.info('acquiring lock %s' % lock_name)
     lock = DBLock(lock_name, locked_by=locked_by)
 
@@ -72,8 +90,13 @@ def lock(
 
     time_started = time.time()
     while True:
-        if lock.acquire(lock_ttl=lock_ttl):
-            break
+        try:
+            if lock.acquire(lock_ttl=lock_ttl):
+                break
+        except db.Error:
+            # DB unreachable/certification failure (e.g. Galera 1213) - retry like any other failed acquire
+            logger.exception('error acquiring lock %s, will retry', lock_name)
+            db.close_old_connections()
         if not retry:
             raise LockException('failed to acquire lock')
         if 0 < timeout < time.time() - time_started:
@@ -85,15 +108,16 @@ def lock(
 
     renew_thread = None
     if auto_renew:
-        renew_thread = RenewThread(lock, lock_ttl, lock_ttl_renew)
+        renew_thread = RenewThread(lock, lock_ttl, lock_ttl_renew, max_failures=max_failures)
         renew_thread.start()
 
     _status_file('2')
-    yield
-
-    if renew_thread:
-        renew_thread.stop()
-    lock.release()
+    try:
+        yield
+    finally:
+        if renew_thread:
+            renew_thread.stop()
+        lock.release()
 
 
 def locked(func_or_name=None, **lock_kwargs):
@@ -160,8 +184,20 @@ class DBLock:
 
     def acquire(self, lock_ttl=10):
         with db.transaction.atomic():
+            # evaluate expiry against the DB clock (Now()), not the acquiring VM's clock, so all
+            # contenders share one time source - a fast/slow app server clock must not affect who
+            # holds the lock
             dblock = (
-                self._model.objects.select_for_update().filter(name=self._name).first()
+                self._model.objects.select_for_update()
+                .annotate(
+                    is_active=Case(
+                        When(expires_at__gt=Now(), then=Value(True)),
+                        default=Value(False),
+                        output_field=BooleanField(),
+                    )
+                )
+                .filter(name=self._name)
+                .first()
             )
             if dblock is None:
                 logger.debug(
@@ -182,7 +218,7 @@ class DBLock:
                 except db.IntegrityError:
                     logger.debug('could not create lock %s, try next time', self._name)
                     return False
-            if dblock.active and dblock.locked_by != self._locked_by:
+            if dblock.is_active and dblock.locked_by != self._locked_by:
                 # it's DEBUG level but no need to spam...
                 if dblock.locked_by != self.__last_owner:
                     logger.debug(
@@ -193,9 +229,18 @@ class DBLock:
                     self.__last_owner = dblock.locked_by
                 return False
 
-            dblock.locked_by = self._locked_by
-            dblock.expires_at = timezone.now() + timezone.timedelta(seconds=lock_ttl)
-            dblock.save()
+            # fencing: only overwrite rows still owned by us (or unowned/expired, matched above under
+            # the row lock) - cheap defence in depth on top of select_for_update, in case that ever
+            # gets bypassed (e.g. node-local row locks on a multi-writer Galera cluster)
+            updated = self._model.objects.filter(
+                pk=dblock.pk, locked_by=dblock.locked_by
+            ).update(
+                locked_by=self._locked_by,
+                expires_at=timezone.now() + timezone.timedelta(seconds=lock_ttl),
+            )
+            if not updated:
+                logger.debug('lock %s stolen from under us, try next time', self._name)
+                return False
             logger.debug('lock %s acquired/renewed', self._name)
             return True
 
@@ -212,30 +257,38 @@ class DBLock:
 
 
 class RenewThread(threading.Thread):
-    def __init__(self, lock_obj, ttl, early_tick):
+    def __init__(self, lock_obj, ttl, early_tick, max_failures=1):
         super(RenewThread, self).__init__()
 
         self.__lock = lock_obj
         self.__ttl = ttl
         # renew EARLY_TICK seconds before TTL
         self.__wait = max(ttl - early_tick, 1)
+        self.__max_failures = max_failures
+        self.__failures = 0
 
         self.__stopped = threading.Event()
         self.daemon = True
 
     def renew(self):
-        # is there any other way to notify main thread?
         try:
             if self.__lock.acquire(lock_ttl=self.__ttl):
+                self.__failures = 0
                 return
-            logger.error('failed to re-acquire lock %s', self.__lock.name)
+            # someone else genuinely owns it now - give up immediately, no tolerance
+            logger.error('lock %s taken by someone else', self.__lock.name)
+            self.__failures = self.__max_failures
         except Exception:
-            # any exception happens, treat it as failed to acquire...
-            logger.exception('some error re-acquiring lock %s', self.__lock.name)
+            # couldn't reach the DB (or similar) - tolerate up to max_failures, retrying next tick
+            logger.exception('error re-acquiring lock %s', self.__lock.name)
+            # don't let a retry reuse a broken connection
+            db.close_old_connections()
+            self.__failures += 1
 
-        # not really needed, but doesn't hurt
-        self.__stopped.set()
-        os.kill(os.getpid(), signal.SIGUSR1)
+        if self.__failures >= self.__max_failures:
+            # is there any other way to notify main thread?
+            self.__stopped.set()
+            os.kill(os.getpid(), signal.SIGUSR1)
 
     def run(self):
         while True:
