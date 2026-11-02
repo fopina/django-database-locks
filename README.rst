@@ -154,24 +154,28 @@ Before relying on this library on a Galera-like cluster, determine whether your 
 Testing
 -------
 
-Tox is used by the Github Action to test several python and django versions, with both MySQL and Postgres.
+Install the development dependencies with ``uv sync --group dev``. The GitHub Actions
+matrix tests Python 3.9 with Django 4.2, Python 3.10 with Django 5.2, and Python 3.12
+and 3.14 with Django 6.1, using both MySQL and PostgreSQL.
 
-To quickly test locally, kick off a MySQL and/or Postgres docker container:
+For a local run with the latest matrix versions, start MySQL and PostgreSQL containers:
 
 
     docker run -d --name locks-test \
                -p 8877:3306 \
                -e MYSQL_ROOT_PASSWORD=root \
-               mysql:5.7
+               mysql:8.4
 
     docker run -d --name locks-test-psql \
                -p 8878:5432 \
                -e POSTGRES_PASSWORD=postgres \
-               postgres:10
+               postgres:15
 
 
-List available environments with `tox -l` and then run the one you want/have:
+List environments with ``uv run tox -l``, then run the matching Python/Django/database environment:
 
-    tox -e py39-dj32-mysql
+    uv run tox -e py39-dj42-mysql
     # or
-    tox -e py39-dj32-postgresql -e py39-dj32-mysql
+    uv run tox -e py310-dj52-postgresql
+    # Python 3.12 and 3.14 use Django 6.1
+    uv run tox -e py312-dj61-mysql

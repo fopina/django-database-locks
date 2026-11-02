@@ -1,21 +1,22 @@
-.PHONY: flake8 test coverage style style_check
+.PHONY: lint test coverage style style_check
 
 style:
-	black --target-version=py36 database_locks tests setup.py
-	flake8 database_locks tests
+	ruff format database_locks tests
+	ruff check database_locks tests
 
 style_check:
-	black --target-version=py36 --check database_locks tests setup.py
+	ruff format --check database_locks tests
+	ruff check database_locks tests
 
-flake8:
-	flake8 database_locks tests
+lint:
+	ruff check database_locks tests
 
 startmysql:
 	docker inspect django-database-locks-mysql | grep '"Running": true' || \
 		docker run --name django-database-locks-mysql \
 		           -e MYSQL_ROOT_PASSWORD=root \
 		           --rm -p 8877:3306 -d \
-				   mysql:5
+				   mysql:8.4
 
 startpg:
 	docker inspect django-database-locks-pg | grep '"Running": true' || \
@@ -24,7 +25,7 @@ startpg:
           		   -e POSTGRES_PASSWORD=postgres \
 				   -e POSTGRES_DB=postgres \
 		           --rm -p 8878:5432 -d \
-				   postgres:10
+				   postgres:15
 
 test: startmysql
 	DJANGO_SETTINGS_MODULE=settings_mysql \
