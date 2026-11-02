@@ -6,7 +6,7 @@ django-database-locks
     :target: https://github.com/fopina/django-database-locks/actions?query=workflow%3Atests
     :alt: tests
 
-.. image:: https://codecov.io/gh/fopina/django-database-locks/branch/master/graph/badge.svg
+.. image:: https://codecov.io/gh/fopina/django-database-locks/branch/main/graph/badge.svg
    :target: https://codecov.io/gh/fopina/django-database-locks
    :alt: Test coverage status
 
