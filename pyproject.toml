@@ -36,13 +36,20 @@ Issues = "https://github.com/fopina/django-database-locks/issues"
 
 [dependency-groups]
 dev = [
-    "black>=19.10b0",
     "coverage",
-    "flake8",
     "readme-renderer",
+    "ruff",
     "tox",
     "twine",
 ]
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E203", "W503"]
 
 [tool.setuptools.dynamic]
 version = { attr = "database_locks.__version__" }
