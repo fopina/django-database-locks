@@ -32,7 +32,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:5
+        image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: root
         ports:
@@ -40,7 +40,7 @@ jobs:
         # needed because the container does not provide a healthcheck
         options: --health-cmd "mysqladmin ping" --health-interval 10s --health-timeout 5s --health-retries=5
       postgres:
-        image: postgres:10
+        image: postgres:15
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
