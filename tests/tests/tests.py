@@ -43,14 +43,10 @@ class Test(TestCase):
         with self.assertLogs(logger='database_locks', level='INFO') as cm:
             with database_locks.lock('testing'):
                 self._lock_mock.assert_called_once_with('testing', locked_by=None)
-                self._lock_mock.return_value.acquire.assert_called_once_with(
-                    lock_ttl=10
-                )
+                self._lock_mock.return_value.acquire.assert_called_once_with(lock_ttl=10)
                 self._lock_mock.return_value.release.assert_not_called()
         self._lock_mock.return_value.release.assert_called_once_with()
-        self.assertEqual(
-            cm.output, ['INFO:database_locks.locks:acquiring lock testing']
-        )
+        self.assertEqual(cm.output, ['INFO:database_locks.locks:acquiring lock testing'])
         self._thread_mock.assert_called_with()
 
     def test_lock_fail_and_retry(self):
@@ -66,9 +62,7 @@ class Test(TestCase):
 
     def test_lock_fail_but_no_retry(self):
         self._lock_mock.return_value.acquire.return_value = False
-        with self.assertRaisesMessage(
-            database_locks.locks.LockException, 'failed to acquire lock'
-        ):
+        with self.assertRaisesMessage(database_locks.locks.LockException, 'failed to acquire lock'):
             with database_locks.lock('testing', retry=False):
                 pass
         self._lock_mock.assert_called_once_with('testing', locked_by=None)
@@ -98,9 +92,7 @@ class Test(TestCase):
     def test_lock_decorator(self):
         @database_locks.locked
         def locked_func():
-            self._lock_mock.assert_called_once_with(
-                'tests.tests.locked_func', locked_by=None
-            )
+            self._lock_mock.assert_called_once_with('tests.tests.locked_func', locked_by=None)
             self._lock_mock.return_value.acquire.assert_called_once_with(lock_ttl=10)
             self._lock_mock.return_value.release.assert_not_called()
             self._thread_mock.assert_called_with()
@@ -112,9 +104,7 @@ class Test(TestCase):
     def test_lock_decorator_empty_parameters(self):
         @database_locks.locked()
         def locked_func():
-            self._lock_mock.assert_called_once_with(
-                'tests.tests.locked_func', locked_by=None
-            )
+            self._lock_mock.assert_called_once_with('tests.tests.locked_func', locked_by=None)
             self._lock_mock.return_value.acquire.assert_called_once_with(lock_ttl=10)
             self._lock_mock.return_value.release.assert_not_called()
             self._thread_mock.assert_called_with()
@@ -124,9 +114,7 @@ class Test(TestCase):
         self._lock_mock.return_value.release.assert_called_once_with()
 
     def test_lock_decorator_with_parameters(self):
-        @database_locks.locked(
-            'decorator_test', timeout=2, auto_renew=False, lock_ttl=1
-        )
+        @database_locks.locked('decorator_test', timeout=2, auto_renew=False, lock_ttl=1)
         def locked_func():
             self._lock_mock.assert_called_once_with('decorator_test', locked_by=None)
             self._lock_mock.return_value.acquire.assert_called_once_with(lock_ttl=1)
@@ -146,12 +134,8 @@ class Test(TestCase):
         @database_locks.locked
         class TestCommand(BasicCommand):
             def handle(inner_self, arg):
-                self._lock_mock.assert_called_once_with(
-                    'tests.tests.TestCommand', locked_by=None
-                )
-                self._lock_mock.return_value.acquire.assert_called_once_with(
-                    lock_ttl=10
-                )
+                self._lock_mock.assert_called_once_with('tests.tests.TestCommand', locked_by=None)
+                self._lock_mock.return_value.acquire.assert_called_once_with(lock_ttl=10)
                 self._lock_mock.return_value.release.assert_not_called()
                 # auto_renew disabled, no thread
                 self._thread_mock.assert_called()
@@ -194,9 +178,7 @@ class Test(TestCase):
         call_command('db_lock_it', 'xxx', duration=3456, owner='oona', stdout=out)
         self._lock_mock.assert_called_once_with('xxx', locked_by='oona')
         self._sleep_mock.assert_called_once_with(3456)
-        self.assertEqual(
-            out.getvalue(), 'Got the lock, sleeping 3456 seconds\nReleasing lock\n'
-        )
+        self.assertEqual(out.getvalue(), 'Got the lock, sleeping 3456 seconds\nReleasing lock\n')
 
 
 @skipUnlessDBFeature('has_select_for_update')
@@ -228,9 +210,7 @@ class TestRenewThread(TestCase):
         rt.run()
         ml.acquire.assert_called_once_with(lock_ttl=10)
 
-    @override_settings(
-        DATABASE_LOCKS_DEFAULT_TTL=20, DATABASE_LOCKS_DEFAULT_TTL_RENEW=5
-    )
+    @override_settings(DATABASE_LOCKS_DEFAULT_TTL=20, DATABASE_LOCKS_DEFAULT_TTL_RENEW=5)
     @mock.patch('database_locks.locks.DBLock')
     def test_renew_thread_change_defaults(self, lock_mock):
         ml = lock_mock.return_value
@@ -299,9 +279,10 @@ class TestRenewThread(TestCase):
         type(ml).name = 'test_lock'
         rt = database_locks.locks.RenewThread(ml, 10, 2, max_failures=2)
 
-        with mock.patch('os.kill') as kill_mock, mock.patch(
-            'database_locks.locks.db.close_old_connections'
-        ) as close_mock:
+        with (
+            mock.patch('os.kill') as kill_mock,
+            mock.patch('database_locks.locks.db.close_old_connections') as close_mock,
+        ):
             ml.acquire.side_effect = Exception('blip')
             rt.renew()
             kill_mock.assert_not_called()
@@ -379,9 +360,7 @@ class TestLock(TestCase):
 
         with self.assertLogs('database_locks', level='DEBUG') as logs:
             self.assertTrue(l2.acquire())
-        self.assertEqual(
-            logs.output, ['DEBUG:database_locks.locks:lock x1 acquired/renewed']
-        )
+        self.assertEqual(logs.output, ['DEBUG:database_locks.locks:lock x1 acquired/renewed'])
 
     def test_locked_lock_diff_owner(self):
         l1 = database_locks.locks.DBLock('x1', locked_by='dibs')
@@ -421,9 +400,7 @@ class TestLock(TestCase):
 
         with self.assertLogs('database_locks', level='DEBUG') as logs:
             self.assertTrue(l2.acquire())
-        self.assertEqual(
-            logs.output, ['DEBUG:database_locks.locks:lock x1 acquired/renewed']
-        )
+        self.assertEqual(logs.output, ['DEBUG:database_locks.locks:lock x1 acquired/renewed'])
 
     def test_expired_lock(self):
         l1 = database_locks.locks.DBLock('x1', locked_by='dibs')
@@ -441,9 +418,7 @@ class TestLock(TestCase):
 
         with self.assertLogs('database_locks', level='DEBUG') as logs:
             self.assertTrue(l2.acquire())
-        self.assertEqual(
-            logs.output, ['DEBUG:database_locks.locks:lock x1 acquired/renewed']
-        )
+        self.assertEqual(logs.output, ['DEBUG:database_locks.locks:lock x1 acquired/renewed'])
 
     def test_fencing_stolen_lock_rejected(self):
         # bug 5: a race between reading the row (past its expiry, so eligible to steal) and

@@ -1,21 +1,20 @@
 import inspect
 import logging
-import threading
-import platform
 import os
-import time
+import platform
 import signal
+import threading
+import time
 from contextlib import contextmanager
 from functools import wraps
 
-from django.conf import settings
 from django import db
 from django.apps import apps
-from django.utils import timezone
+from django.conf import settings
+from django.core.management.base import BaseCommand
 from django.db.models import BooleanField, Case, Value, When
 from django.db.models.functions import Now
-from django.core.management.base import BaseCommand
-
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 NOTSET = object()
@@ -55,9 +54,7 @@ def lock(
     _status_file('0')
 
     if not settings.DATABASE_LOCKS_ENABLED:
-        logger.warning(
-            'database_locks currently disabled in settings, adjust DATABASE_LOCKS_ENABLED if not intended'
-        )
+        logger.warning('database_locks currently disabled in settings, adjust DATABASE_LOCKS_ENABLED if not intended')
         yield
         return
 
@@ -138,9 +135,7 @@ def locked(func_or_name=None, **lock_kwargs):
 
         if inspect.isclass(func):
             if not issubclass(func, BaseCommand):
-                raise NotImplementedError(
-                    'only django BaseCommand subclasses are supported for now'
-                )
+                raise NotImplementedError('only django BaseCommand subclasses are supported for now')
 
             orig_handle = func.handle
 
@@ -210,8 +205,7 @@ class DBLock:
                     self._model.objects.create(
                         name=self._name,
                         locked_by=self._locked_by,
-                        expires_at=timezone.now()
-                        + timezone.timedelta(seconds=lock_ttl),
+                        expires_at=timezone.now() + timezone.timedelta(seconds=lock_ttl),
                     )
                     logger.debug('lock %s (created and) acquired', self._name)
                     return True
@@ -232,9 +226,7 @@ class DBLock:
             # fencing: only overwrite rows still owned by us (or unowned/expired, matched above under
             # the row lock) - cheap defence in depth on top of select_for_update, in case that ever
             # gets bypassed (e.g. node-local row locks on a multi-writer Galera cluster)
-            updated = self._model.objects.filter(
-                pk=dblock.pk, locked_by=dblock.locked_by
-            ).update(
+            updated = self._model.objects.filter(pk=dblock.pk, locked_by=dblock.locked_by).update(
                 locked_by=self._locked_by,
                 expires_at=timezone.now() + timezone.timedelta(seconds=lock_ttl),
             )
@@ -247,9 +239,7 @@ class DBLock:
     def release(self):
         logger.debug('releasing lock %s', self._name)
         with db.transaction.atomic():
-            dblock = (
-                self._model.objects.select_for_update().filter(name=self._name).first()
-            )
+            dblock = self._model.objects.select_for_update().filter(name=self._name).first()
             if dblock and dblock.active and dblock.locked_by == self._locked_by:
                 dblock.expires_at = None
                 dblock.save()
@@ -317,6 +307,4 @@ def _status_file(message):
             _f.write(message)
     except Exception:
         # log but don't break anything
-        logger.exception(
-            'failed to update lock status file %s', settings.DATABASE_LOCKS_STATUS_FILE
-        )
+        logger.exception('failed to update lock status file %s', settings.DATABASE_LOCKS_STATUS_FILE)

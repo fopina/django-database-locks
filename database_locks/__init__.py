@@ -1,5 +1,5 @@
-from .locks import locked, lock  # noqa: F401
+from .locks import lock, locked  # noqa: F401
 
-__version__ = version = '0.6'
+__version__ = version = '0.0.1'
 
 default_app_config = 'database_locks.apps.DBLocksConfig'
