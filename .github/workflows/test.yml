@@ -5,34 +5,51 @@ name: tests
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   readme:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v7
       with:
-        python-version: 3.8
+        python-version: 3.9
     - name: Install renderer
       run: pip install readme_renderer
     - name: Test readme (before pypi errors)
       run: python -m readme_renderer README.rst
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: ['3.9', '3.10', '3.12', '3.14']
         database: [mysql, postgresql]
+        include:
+          - python-version: '3.9'
+            django-factor: dj42
+            mysql-version: '8.0'
+            postgres-version: '12'
+          - python-version: '3.10'
+            django-factor: dj52
+            mysql-version: '8.0'
+            postgres-version: '14'
+          - python-version: '3.12'
+            django-factor: dj61
+            mysql-version: '8.4'
+            postgres-version: '15'
+          - python-version: '3.14'
+            django-factor: dj61
+            mysql-version: '8.4'
+            postgres-version: '15'
 
     services:
       mysql:
-        image: mysql:5
+        image: mysql:${{ matrix.mysql-version }}
         env:
           MYSQL_ROOT_PASSWORD: root
         ports:
@@ -40,7 +57,7 @@ jobs:
         # needed because the container does not provide a healthcheck
         options: --health-cmd "mysqladmin ping" --health-interval 10s --health-timeout 5s --health-retries=5
       postgres:
-        image: postgres:10
+        image: postgres:${{ matrix.postgres-version }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -51,9 +68,9 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v7
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install tox
@@ -61,14 +78,14 @@ jobs:
         pip install tox
     - name: Toxit
       run: |
-        tox -e py-${{ matrix.database }} -v
+        tox -e py-${{ matrix.database }}-${{ matrix.django-factor }} -v
     
     - name: coverage xml
       run: |
-        .tox/py-mysql/bin/coverage xml
-      if: ${{ matrix.python-version == 3.7 && matrix.database == 'mysql' }}
+        .tox/py-${{ matrix.database }}-${{ matrix.django-factor }}/bin/coverage xml
+      if: ${{ matrix.python-version == '3.9' && matrix.database == 'mysql' }}
 
-    - uses: codecov/codecov-action@v1
+    - uses: codecov/codecov-action@v7
       with:
         fail_ci_if_error: true
-      if: ${{ matrix.python-version == 3.7 && matrix.database == 'mysql' }}
+      if: ${{ matrix.python-version == '3.9' && matrix.database == 'mysql' }}
