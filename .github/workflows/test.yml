@@ -17,7 +17,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v7
       with:
-        python-version: 3.8
+        python-version: 3.9
     - name: Install renderer
       run: pip install readme_renderer
     - name: Test readme (before pypi errors)
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.9, 3.10, 3.12, 3.14]
         database: [mysql, postgresql]
 
     services:
@@ -66,9 +66,9 @@ jobs:
     - name: coverage xml
       run: |
         .tox/py-mysql/bin/coverage xml
-      if: ${{ matrix.python-version == 3.7 && matrix.database == 'mysql' }}
+      if: ${{ matrix.python-version == 3.9 && matrix.database == 'mysql' }}
 
     - uses: codecov/codecov-action@v7
       with:
         fail_ci_if_error: true
-      if: ${{ matrix.python-version == 3.7 && matrix.database == 'mysql' }}
+      if: ${{ matrix.python-version == 3.9 && matrix.database == 'mysql' }}
