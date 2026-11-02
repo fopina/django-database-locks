@@ -23,9 +23,7 @@ def main():
 
     if args.set:
         version = args.set[1:] if args.set.startswith('v') else args.set
-        updated = VERSION_RE.sub(
-            lambda _: f"__version__ = version = '{version}'", data, count=1
-        )
+        updated = VERSION_RE.sub(lambda _: f"__version__ = version = '{version}'", data, count=1)
         VERSION_PY.write_text(updated)
         print(f'New version: {version}')
 
