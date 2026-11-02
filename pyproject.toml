@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=77.0.0,<80.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-database-locks"
+dynamic = ["version"]
+description = "Distributed locks for Django using a database (MySQL or PostgreSQL)."
+readme = "README.rst"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Filipe Pina", email = "fopina@gmail.com" }]
+dependencies = ["Django>=2.2"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 2.2",
+    "Framework :: Django :: 3.0",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/fopina/django-database-locks"
+Source = "https://github.com/fopina/django-database-locks"
+Issues = "https://github.com/fopina/django-database-locks/issues"
+
+[dependency-groups]
+dev = [
+    "black>=19.10b0",
+    "coverage",
+    "flake8",
+    "readme-renderer",
+    "tox",
+    "twine",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "database_locks.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["database_locks*"]
+exclude = ["tests*"]
+
+[tool.coverage.run]
+source = ["database_locks"]
+
+[tool.coverage.report]
+show_missing = true
